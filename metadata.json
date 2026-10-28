@@ -1,0 +1,8 @@
+{
+  "name": "ScamLens - Student Fraud & Suspicious URL Detector",
+  "description": "Heuristic cybersecurity analyzer helping students identify fraudulent messages and suspicious links before losing money or credentials.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

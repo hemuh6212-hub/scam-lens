@@ -1,0 +1,349 @@
+================================================================================
+SCAMLENS — COMPREHENSIVE PROJECT PRESENTATION & VIVA Q&A GUIDE
+================================================================================
+Project: ScamLens — Student Fraud & Suspicious URL Detector
+Version: 1.5.0 (Full-Stack Production Edition)
+Target Audience: College Students, Young Job Seekers, Digital Citizens
+Presentation Scope: Problem Statement, Architecture, Core Engines, Security, 
+                    Testing Benchmarks, Live Sandbox, and Technical Defense.
+
+================================================================================
+SECTION 1: PROJECT FOUNDATIONS & VALUE PROPOSITION
+================================================================================
+
+Q1: What is ScamLens in simple terms?
+A1: ScamLens is a specialized cybersecurity and fraud-detection web platform 
+    engineered to protect students and young adults from online financial fraud, 
+    recruitment scams, credential harvesting, and deceptive links. It provides 
+    two core modules:
+    1. An Explainable Heuristic Message Scanner for SMS, WhatsApp, and Telegram messages.
+    2. A Dual-Mode URL Inspector featuring fast offline structural syntax analysis 
+       and an isolated backend Live Sandbox Scanner that inspects actual DOM forms 
+       and live page content.
+
+Q2: What specific problem does ScamLens solve, and why target students?
+A2: College students and fresh graduates are prime targets for cybercriminals because:
+    - They actively search for remote jobs and internships (falling victim to upfront 
+      registration or laptop kit deposit scams).
+    - They frequently use UPI apps (PhonePe, GPay, Paytm) where scammers exploit 
+      misconceptions about receiving money vs. entering a PIN.
+    - They often lack experience dealing with aggressive impersonation tactics like 
+      fake electricity disconnection, bank KYC suspensions, or "digital arrest" calls.
+    Existing antivirus and enterprise security tools are often heavy, commercial, 
+    or privacy-invasive. ScamLens offers a zero-cost, instant, educational tool 
+    explaining *why* a message or URL is dangerous.
+
+Q3: How does ScamLens differ from typical "black-box" machine learning or AI models?
+A3: Most AI classifiers output a single probability score without transparent reasoning, 
+    can hallucinate, and frequently send sensitive user messages to third-party cloud 
+    servers. In contrast:
+    - ScamLens is deterministic and explainable: Every score deduction is tied to an 
+      auditable heuristic rule with point weights, matched snippets, and student safety tips.
+    - ScamLens preserves privacy: The message engine runs 100% locally in browser memory; 
+      user messages are never saved to a database or sent to external AI APIs.
+
+Q4: What are the primary threat categories detected by ScamLens?
+A4: 1. Upfront internship/job registration fees and laptop kit deposits.
+    2. UPI collect requests, fake refund traps, and "sent by mistake" claims.
+    3. Urgent bank KYC expiration and account suspension threats.
+    4. Utility/electricity disconnection extortion.
+    5. Fake courier delivery failure fees (India Post, FedEx).
+    6. Digital arrest and statutory authority coercion (Police, CBI, Customs).
+    7. Malicious sideloaded APK downloads and remote access tools (AnyDesk, QuickSupport).
+    8. Brand impersonation, typosquatting, and brand concatenation (e.g., hdfcbank, sbibank).
+    9. Punctuation-obfuscated credentials (O.T.P, U_P_I P_I_N, K-Y-C).
+    10. Hinglish task scams (promising daily income for liking YouTube videos on Telegram).
+
+================================================================================
+SECTION 2: ARCHITECTURE & TECHNOLOGY STACK
+================================================================================
+
+Q5: What is the technology stack of ScamLens?
+A5: - Frontend: React 19, TypeScript, Tailwind CSS v4, Lucide React icons.
+    - Bundler & Dev Server: Vite 6 with React plugin.
+    - Backend: Node.js with Express and TypeScript (via `tsx`).
+    - DOM Parsing: Cheerio for fast, secure server-side HTML inspection.
+    - Network / DNS: Native Node.js `dns/promises` and `fetch` with AbortController timeouts.
+
+Q6: How does ScamLens balance privacy with full-stack capabilities?
+A6: - For standard analysis (Message Scanner and URL Syntax Inspector), execution is 
+      100% client-side in browser memory. Zero bytes are stored (no localStorage, 
+      sessionStorage, or cookies), and zero external telemetry is transmitted.
+    - When a user explicitly clicks "Live Sandbox Scan", the request is processed 
+      by ScamLens's own backend proxy (`/api/sandbox-scan`). The backend isolates 
+      the user's IP, enforces strict anti-SSRF defenses, and fetches the page safely 
+      without exposing the user's browser to malicious payloads.
+
+Q7: What is the project directory structure?
+A7: - `/src/components/`: Header, Hero, MessageAnalyzer, UrlAnalyzer, FAQ, Footer.
+    - `/src/utils/`:
+        * `messageAnalyzer.ts`: Rule-based message evaluation & regex engine.
+        * `urlAnalyzer.ts`: Offline syntactic & structural URL decomposition.
+        * `sandboxScanner.ts`: Backend sandbox fetcher, SSRF firewall, and DOM auditor.
+    - `/src/types/`: Centralized TypeScript interfaces for strict type safety.
+    - `/server.ts`: Express entry point mounting Vite middlewares and sandbox API.
+    - Test suites: `test_suite.ts`, `evaluation_benchmark.ts`, `phase3_message_verification.ts`,
+      `phase4_evaluation_audit.ts`, `phase4_corrections_regression.ts`, `cases_a_to_h_test.ts`.
+
+================================================================================
+SECTION 3: MODULE 1 — HEURISTIC MESSAGE SCAM ANALYZER
+================================================================================
+
+Q8: How does the normalization and de-obfuscation pipeline work in the Message Analyzer?
+A8: Scammers frequently use delimiters or hidden symbols to evade simple keyword filters. 
+    Before running rule heuristics, ScamLens normalizes text in `normalizeMessageText()`:
+    1. Strips zero-width characters and invisible formatting ([\u200B-\u200D\uFEFF]).
+    2. De-obfuscates spaced or punctuation-separated terms via `deobfuscateTerm()`:
+       - Uses the regex pattern: `letters.split('').join('[\\s._*\\/-]+')`.
+       - Replaces variations like `O.T.P`, `O-T-P`, `O_T_P`, `O*T*P`, `O/T/P` into canonical `OTP`.
+       - Handles PASSWORD, MPIN, OTP, PIN, CVV, KYC, UPI, and AADHAAR.
+       - Replaces longer compound words (PASSWORD, MPIN) before shorter ones (PIN) to 
+         prevent partial-replacement corruption.
+       - Anchors the hyphen at the end of the character class `[\\s._*\\/-]+` to eliminate 
+         character range ambiguity across all JavaScript engines.
+
+Q9: How are threat scores calculated and what are the classification thresholds?
+A9: - Each threat category carries a calibrated point weight (15 to 35 points).
+    - Rule Deduplication: Each category scores at most ONCE, even if multiple keywords match.
+    - Bounded Range: Raw scores are strictly clamped to [0, 100].
+    - Classification Thresholds:
+        * 0–24:   SAFE     (Low heuristic risk; benign or routine communication)
+        * 25–59:  RISKY    (Suspicious red flags present; independent verification advised)
+        * 60–100: SCAM     (High fraud probability; multiple critical red flags present)
+
+Q10: How does ScamLens avoid false positives on legitimate college notices or bank alerts?
+A10: ScamLens uses multi-signal contextual matching:
+     - For Job Fees (`rule_job_fee`): Requires BOTH employment context AND upfront fee demand. 
+       Legitimate college symposium, seminar, or library notices mentioning fees are protected.
+     - For Bank Credits: Routine transaction SMS (e.g., "credited with INR 35,000") lack 
+       coercive links or credential demands and evaluate as SAFE (score 0).
+     - For Credentials (`rule_credentials`): The engine features an explicit defensive 
+       advisory check (`isDefensiveAdvisory`). Messages like "Do not share your bank password 
+       or OTP with anyone" or "RBI Kehta Hai: kisi ko bhi apna OTP na batayein" are recognized 
+       as defensive awareness and award 0 points.
+
+Q11: How does ScamLens detect Romanized Hindi / Hinglish scam phrases?
+A11: Cybercriminals in India heavily exploit Romanized Hindi to target regional users. 
+     ScamLens includes syntactic regex patterns for common fraud vernacular:
+     - Account blocking: `aapka khata block ho jayega, turant kyc karein`
+     - UPI collect trap: `paise prapt karne ke liye upi pin dalein`
+     - Utility extortion: `bijli connection kat jayega, abhi payment karein`
+     - Task scam: `YouTube video like karke paise kamayein`, `rozana ... rupaye kamayein`
+     - Awareness: `kisi ko bhi apna otp na batayein`, `bank kabhi otp nahi mangta`
+
+Q12: How does the credential rule handle intervening modifiers (e.g. "6-digit OTP")?
+A12: Phishers often write "forward the 6-digit OTP" or "share your 4-digit PIN". 
+     Earlier simple regexes looking for `forward\s+your\s+otp` failed when adjectives 
+     intervened. ScamLens permits flexible intervening phrasing up to 40 characters:
+     `/(?:share|enter|send|provide|give|disclose|forward|tell)\b.{1,40}\b(?:otp|pin|password|mpin|cvv|credentials)\b/i`
+     This reliably matches "forward the 6-digit OTP received on your mobile" or "tell our 
+     support agent the temporary password" while respecting defensive exemptions.
+
+================================================================================
+SECTION 4: MODULE 2 — LOCAL STRUCTURAL URL INSPECTOR
+================================================================================
+
+Q13: How does the offline URL Inspector work without clicking on links?
+A13: The URL Inspector evaluates the syntax, protocol, and domain architecture entirely 
+     offline using standard web standards (RFC 3986):
+     - Validates safe web protocols (HTTP/HTTPS) and rejects unsafe schemes (`javascript:`, `file:`).
+     - Normalizes bare domains (`google.com` -> `https://google.com/`).
+     - Splits hostname into Subdomain, Root Domain, and Effective Suffix.
+     - Evaluates 13 structural risk flags and awards positive Trust Signals for accredited suffixes.
+
+Q14: Why is multi-part suffix decomposition critical for accurate phishing detection?
+A14: In countries like India or the UK, domains use multi-part registries like `.co.in`, 
+     `.ac.in`, `.gov.in`, or `.co.uk`. A naive parser splitting by the last dot would 
+     think the root domain of `sbi.co.in.scam-server.xyz` is `scam-server.xyz` (correct), 
+     but for `sbi.co.in` it would misidentify `co.in` as the root domain and `sbi` as 
+     the subdomain! 
+     ScamLens incorporates a comprehensive multi-part public registry parser, ensuring:
+     - `sbi.co.in` is recognized as the official root domain under `.co.in`.
+     - `sbi.co.in.scam-server.xyz` is correctly parsed with Subdomain = `sbi.co.in` 
+       and Root Domain = `scam-server.xyz`, exposing the deceptive subdomain spoofing!
+
+Q15: How does ScamLens detect brand typosquatting and brand concatenation?
+A15: Attackers register domains like `hdfcbank-verify-kyc.xyz` or `sbibank-login.com`. 
+     ScamLens maintains a brand registry with official suffixes and variant keywords:
+     - Detects brand terms (`hdfc`, `hdfcbank`, `sbi`, `sbibank`, `icici`, `icicibank`, `axisbank`).
+     - Verifies whether the root domain is on the brand's verified whitelist (e.g. `hdfcbank.com`, 
+       `sbi.bank.in`, `icicibank.com`).
+     - If the brand term appears on an unauthorized root domain, it triggers a Critical 
+       `flag_brand_spoof` (+35 points).
+     - Genuine brands are never flagged, and generic words like "bank" on unrelated domains 
+       are not penalized without brand impersonation.
+
+Q16: What are "Trust Signals" in the URL Inspector?
+A16: Accredited academic and governmental registries (`.ac.in`, `.edu.in`, `.gov.in`, `.edu`, `.gov`) 
+     require rigorous legal and organizational verification before issuance. 
+     When ScamLens detects these registries, it assigns 0 penalty points and displays an 
+     informational green "Trust Signal" badge to reassure students accessing legitimate campus portals.
+
+Q17: What other structural red flags does the URL Inspector check?
+A17: - Raw numeric IP addresses (`http://192.168.1.1`): +40 pts.
+     - Insecure HTTP protocol (`http://`): +25 pts.
+     - Deceptive userinfo `@` symbol trick (`http://google.com@evil.com`): +35 pts.
+     - Sideloaded executable / APK payload paths (`.apk`, `.exe`, `.bat`): +35 pts.
+     - Punycode lookalikes (`xn--`): +30 pts.
+     - URL shorteners (`bit.ly`, `tinyurl`): +25 pts.
+     - Non-standard network ports (`:8080`, `:8443`): +25 pts.
+     - Disposable / High-Risk TLDs (`.xyz`, `.top`, `.icu`): +15 pts.
+     - Deep subdomain nesting (3+ levels) and hyphen stuffing (3+ hyphens): +15 pts each.
+
+================================================================================
+SECTION 5: MODULE 3 — LIVE WEBSITE SANDBOX SCANNER
+================================================================================
+
+Q18: Why did you build the Live Sandbox Scanner? Why can't browsers scan sites directly?
+A18: A browser running client-side JavaScript cannot directly inspect an external website 
+     due to CORS (Cross-Origin Resource Sharing) restrictions. If a frontend script tries 
+     to fetch an external site, the browser blocks it. Furthermore, having a student's 
+     browser directly contact a malware site exposes their IP address and device fingerprint.
+     The Live Sandbox Scanner solves this by delegating the fetch to an isolated Express 
+     backend proxy that safely retrieves the target HTML, audits DOM forms, and analyzes content.
+
+Q19: What is SSRF (Server-Side Request Forgery) and how does ScamLens defend against it?
+A19: SSRF is an attack where a user submits internal addresses (like `http://127.0.0.1:3000` 
+     or cloud metadata `http://169.254.169.254`) to trick the server into scanning its own 
+     private infrastructure.
+     ScamLens implements robust anti-SSRF defenses in `verifyHostSafe()`:
+     1. Rejects localhost and direct private IP literals (`127.0.0.0/8`, `10.0.0.0/8`, 
+        `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, IPv6 `::1`).
+     2. Asynchronously resolves the domain via Node.js `dns.lookup()` before connecting. 
+        If the domain resolves to any private IP (DNS rebinding attack), the connection 
+        is aborted immediately with a security block message.
+
+Q20: How does the DOM Form & Credential Theft Audit work in the Sandbox?
+A20: Using Cheerio, the sandbox parses the DOM and inspects all `<form>` and `<input>` tags:
+     - Detects `<input type="password">` fields.
+     - Detects OTP, MPIN, CVV, and credit card inputs via name, id, and placeholder attributes.
+     - Checks the `action` attribute of each form:
+       * If a login form on `fake-bank.xyz` submits data to an external third-party domain 
+         (e.g., `attacker-server.com/collect.php`), it triggers a Critical Red Flag 
+         `sb_flag_cross_domain_credential_theft` (+45 pts).
+       * Checks if credentials are submitted over plain unencrypted HTTP (`insecureHttpForms`).
+
+Q21: How does the Sandbox cross-leverage the Message Scam Analyzer?
+A21: After stripping scripts and styles, the sandbox extracts the visible text content 
+     of the live web page and passes it directly into ScamLens's heuristic `analyzeMessage()` engine. 
+     If the target website contains deceptive social engineering text (such as fake KYC 
+     threats, digital arrest coercion, or task scam promises), those on-page scam flags are 
+     highlighted in the report and contribute to the live threat score!
+
+Q22: How does the Sandbox detect redirect cloaking?
+A22: Scammers often share a harmless-looking link that redirects through multiple intermediate 
+     URLs before landing on the phishing page. The Sandbox disables automatic redirects and 
+     manually follows up to 5 hops, recording the HTTP status code (301/302) and destination of 
+     each hop. If 2 or more hops are detected, it flags `sb_flag_redirect_chain` and displays 
+     the complete visual trail in the UI.
+
+Q23: What security headers are audited by the Sandbox?
+A23: 1. HSTS (Strict-Transport-Security): Ensures the site enforces encrypted connections.
+     2. CSP (Content-Security-Policy): Protects against cross-site scripting and script injection.
+     3. X-Frame-Options: Protects against clickjacking.
+     4. Server Header: Discloses or conceals underlying web server software.
+
+================================================================================
+SECTION 6: TESTING, BENCHMARKING & EVALUATION
+================================================================================
+
+Q24: What automated test suites exist in the ScamLens codebase?
+A24: The codebase maintains 6 automated test harnesses:
+     1. `test_suite.ts`: 36 end-to-end system test categories (16 Message + 20 URL). Passed: 100%.
+     2. `evaluation_benchmark.ts`: Formal 62-case benchmark (30 Tuning + 30 Independent Holdout + 
+        2 documented uncertain cases). Passed: 100%.
+     3. `phase3_message_verification.ts`: 17 cases verifying Hinglish phrases & punctuation evasion.
+     4. `phase4_evaluation_audit.ts`: 32 cases testing unseen Hinglish scams, credential modifiers, 
+        defensive advisories, and borderline messages.
+     5. `phase4_corrections_regression.ts`: 19 cases verifying false negative reproductions, 
+        variations, and legitimate controls.
+     6. `cases_a_to_h_test.ts`: 8 cases verifying URL brand concatenation (HDFC, SBI, ICICI).
+
+Q25: What were the results of the Phase 4 independent evaluation and what was fixed?
+A25: - Initial Phase 4 Evaluation (32 cases, 29 evaluated, 3 excluded borderline):
+       * Accuracy: 93.10% (27/29) | Precision: 100% | Recall: 88.24%
+       * Identified 2 False Negatives:
+         1. Hinglish video-liking task scam on Telegram (`HIN-NEW-04`).
+         2. Credential request with intervening modifier ("forward the 6-digit O*T*P") (`OBF-NEW-01`).
+       * Identified regex character range edge case in `deobfuscateTerm()`.
+     - Targeted Corrections:
+       1. Added Romanized Hindi task-scam reward patterns to `rule_unrealistic_rewards`.
+       2. Allowed up to 40 characters of intervening modifiers in `rule_credentials` and 
+          expanded `isDefensiveAdvisory` to protect legitimate security notices.
+       3. Relocated the hyphen to the end of the character class `[\\s._*\\/-]+` to guarantee 
+          zero range ambiguity.
+     - Post-Correction Results:
+       * All 19 regression reproduction/control cases passed 100%.
+       * Re-evaluating the Phase 4 suite yielded 100% accuracy (29/29) with 0 false positives.
+
+Q26: How does ScamLens handle borderline or uncertain cases?
+A26: In real-world cybersecurity, some inputs are genuinely ambiguous (e.g., a friend asking 
+     "Can you send me Rs 500 on GPay?", or an unbranded 4-digit code message). 
+     Forcing binary labels on these cases would introduce artificial metric bias. 
+     ScamLens documents uncertain cases explicitly, evaluates their heuristic signals (e.g. 
+     noting low risk or urgency), and advises personal vigilance without arbitrarily skewing benchmarks.
+
+Q27: Why does the documentation state "Do not claim 100% real-world accuracy based on synthetic tests"?
+A27: This reflects professional engineering integrity. Synthetic test sets demonstrate 
+     that the heuristic rules execute correctly against modeled attack vectors. 
+     However, real-world cybercriminals continuously alter phrasing, typos, and infrastructure. 
+     No rule-based or AI tool can guarantee 100% prevention against novel, unseen human fraud.
+
+================================================================================
+SECTION 7: USER INTERFACE, ACCESSIBILITY & DEPLOYMENT
+================================================================================
+
+Q28: What user interface features enhance student usability?
+A28: - Clean Dual-Scanner Layout: Seamless switching between Message Scanner and URL Inspector.
+     - Visual Risk Gauges: Color-coded badges (Emerald = SAFE, Amber = RISKY, Red = SCAM/SUSPICIOUS, 
+       Teal = Trust Signal).
+     - One-Click Actions: "Paste from Clipboard", "Clear Input", and "Copy Summary Report".
+     - Cross-Engine Link Handover: Any URL extracted in the Message Scanner can be inspected 
+       in the URL Inspector with one click ("Inspect in URL Analyser").
+     - Educational Safety Cards: Built-in FAQ explaining fundamental security rules (e.g., 
+       "UPI PIN is only for paying, never for receiving money").
+
+Q29: How can ScamLens be deployed to production?
+A29: ScamLens is configured for standard deployment:
+     - Full-Stack Hosting (with Live Sandbox): Deployable to Node.js platforms like Cloud Run, 
+       Render, Railway, or Fly.io by running `npm run build` and `npm start` (`node server.ts`).
+     - Static Hosting (Syntax & Message mode): The `/dist` output generated by `npm run build` 
+       can be published to Netlify (`netlify.toml`), Vercel (`vercel.json`), or Cloudflare Pages.
+
+================================================================================
+SECTION 8: ANTICIPATED VIVA / DEFENSE CHALLENGE QUESTIONS
+================================================================================
+
+Q30: "Why not use a commercial Threat Intelligence API like Google Safe Browsing or VirusTotal?"
+A30: 1. Latency & Privacy: Commercial APIs require network round-trips and expose user queries 
+        to third parties.
+     2. Zero-Day Phishing Phasing: Brand-new phishing domains usually take 24–72 hours to appear 
+        on blocklists. ScamLens's structural inspection flags disposable TLDs, raw IPs, brand 
+        concatenation, and password forms *immediately on minute one*, before blocklists update.
+     3. Educational Value: Safe Browsing only returns a binary "bad/good" flag; ScamLens teaches 
+        students *why* the link or message is fraudulent.
+
+Q31: "What happens if a scammer uses encrypted HTTPS and a reputable .com domain?"
+A31: This is where ScamLens's multi-layered approach excels:
+     - While the URL syntax might score low, the Live Sandbox inspects the actual page:
+       * Does the page contain a password form submitting to an external domain?
+       * Does the page text threaten "Bank account blocked, complete KYC"?
+       * Does the user paste the received SMS into the Message Scanner?
+     The combination of Message Analysis, URL Syntax Analysis, and Sandbox Form Inspection 
+     catches threats that evade single-layer checks.
+
+Q32: "What are the limitations of ScamLens?"
+A32: 1. Dynamic JavaScript single-page application cloaking: Sites that require complex user 
+        interactions or CAPTCHAs before rendering phishing forms.
+     2. Voice/Vishing Scams: Phone calls cannot be analyzed directly unless the user transcribes them.
+     3. Evolving zero-day slang: Highly novel vernacular requires continuous rule catalog updates.
+
+Q33: "What are the key future enhancements planned for ScamLens?"
+A33: 1. Community-driven open heuristic rule packs for emerging university campus scams.
+     2. Headless Chromium browser rendering (Puppeteer/Playwright) for screenshot generation 
+        and full JavaScript execution in the sandbox.
+     3. Browser extension integration for real-time passive alerts when students visit suspicious links.
+
+================================================================================
+END OF PRESENTATION & VIVA PREPARATION GUIDE
+================================================================================
